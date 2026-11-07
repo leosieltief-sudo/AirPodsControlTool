@@ -1,0 +1,79 @@
+<Window x:Class="AirPodsControl.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AirPods Control — Settings" Width="460" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen" FontFamily="{StaticResource UiFont}" ShowInTaskbar="True">
+    <Window.Resources>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#FF1C2331" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="#33FFFFFF" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style TargetType="TextBlock" x:Key="Hint">
+            <Setter Property="Foreground" Value="{StaticResource SubtleTextBrush}" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="24,0,0,6" />
+        </Style>
+        <Style TargetType="TextBlock" x:Key="Section">
+            <Setter Property="Foreground" Value="{StaticResource LabelBrush}" />
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,14,0,6" />
+        </Style>
+    </Window.Resources>
+    <Grid Margin="16">
+        <Border CornerRadius="20" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1">
+            <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.5" /></Border.Effect>
+        </Border>
+        <StackPanel Margin="20,14,20,18">
+            <Grid MouseLeftButtonDown="Drag">
+                <TextBlock Text="Settings" FontFamily="{StaticResource MonoFont}" FontSize="15" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                <Button Style="{StaticResource IconButton}" Content="&#xE711;" HorizontalAlignment="Right" Click="Cancel_Click" />
+            </Grid>
+
+            <TextBlock Style="{StaticResource Section}" Text="General" />
+            <CheckBox x:Name="autostart" Style="{StaticResource DarkCheck}" Content="Start with Windows" />
+            <CheckBox x:Name="startHidden" Style="{StaticResource DarkCheck}" Content="Start hidden in the tray" />
+            <CheckBox x:Name="notifications" Style="{StaticResource DarkCheck}" Content="Notify when a hotkey/tray command fails" />
+            <CheckBox x:Name="reduceMotion" Style="{StaticResource DarkCheck}" Content="Reduce motion (disable decorative animations)" />
+
+            <TextBlock Style="{StaticResource Section}" Text="Device" />
+            <ComboBox x:Name="deviceBox" DisplayMemberPath="Label" Height="28" />
+
+            <TextBlock Style="{StaticResource Section}" Text="Off mode" />
+            <CheckBox x:Name="autoOff" Style="{StaticResource DarkCheck}" Content="Allow 'Off' on the AirPods automatically" />
+            <TextBlock Style="{StaticResource Hint}" Text="On AirPods Pro 2/Pro 3/AirPods 4 (ANC) Off is a listening mode that must be allowed in the AirPods' own settings. When enabled, pressing Off first sends the 'Allow Off Option' setting (AAP control 0x34) to the AirPods — the same setting as iPhone → AirPods → Off Listening Mode." />
+
+            <TextBlock Style="{StaticResource Section}" Text="Global hotkeys (click a box, then press the combination)" />
+            <CheckBox x:Name="hotkeysOn" Style="{StaticResource DarkCheck}" Content="Enable global hotkeys" />
+            <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition /><RowDefinition /><RowDefinition />
+                </Grid.RowDefinitions>
+                <TextBlock Text="Noise Cancellation" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                <TextBox x:Name="hkAnc" Grid.Column="1" Margin="0,3" PreviewKeyDown="Hotkey_KeyDown" />
+                <TextBlock Grid.Row="1" Text="Off" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                <TextBox x:Name="hkOff" Grid.Row="1" Grid.Column="1" Margin="0,3" PreviewKeyDown="Hotkey_KeyDown" />
+                <TextBlock Grid.Row="2" Text="Transparency" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+                <TextBox x:Name="hkTr" Grid.Row="2" Grid.Column="1" Margin="0,3" PreviewKeyDown="Hotkey_KeyDown" />
+            </Grid>
+            <TextBlock x:Name="hotkeyStatus" Style="{StaticResource Hint}" Margin="0,6,0,0" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button Style="{StaticResource LinkButton}" Content="Open log folder" Click="Logs_Click" Margin="0,0,8,0" />
+                <Button Style="{StaticResource LinkButton}" Content="Cancel" Click="Cancel_Click" Margin="0,0,8,0" />
+                <Button Style="{StaticResource LinkButton}" Content="Save" Click="Save_Click" FontWeight="Bold" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

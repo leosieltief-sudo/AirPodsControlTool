@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Platform-independent protocol layer: packet building/parsing, models, state machines.
+       No Windows APIs here so that everything can be unit-tested without Bluetooth hardware. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AirPodsControl.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AirPodsControl.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,102 @@
+<UserControl x:Class="AirPodsControl.App.Controls.AirPodsVisual"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <RadialGradientBrush x:Key="Gloss" GradientOrigin="0.35,0.3" Center="0.45,0.4" RadiusX="0.75" RadiusY="0.75">
+            <GradientStop Color="#FFFFFFFF" Offset="0" />
+            <GradientStop Color="#FFE6E9EE" Offset="0.45" />
+            <GradientStop Color="#FFA9B0BC" Offset="1" />
+        </RadialGradientBrush>
+        <LinearGradientBrush x:Key="Stem" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#FFFFFFFF" Offset="0" />
+            <GradientStop Color="#FFDDE1E7" Offset="0.6" />
+            <GradientStop Color="#FF9EA6B3" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="CaseBody" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#FFF4F6F9" Offset="0" />
+            <GradientStop Color="#FFD4D9E0" Offset="0.55" />
+            <GradientStop Color="#FF8F97A4" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="CaseSide" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#55000000" Offset="0" />
+            <GradientStop Color="#00000000" Offset="0.18" />
+            <GradientStop Color="#00000000" Offset="0.82" />
+            <GradientStop Color="#55000000" Offset="1" />
+        </LinearGradientBrush>
+        <RadialGradientBrush x:Key="Tip" GradientOrigin="0.4,0.35">
+            <GradientStop Color="#FFB7BEC9" Offset="0" />
+            <GradientStop Color="#FF6E7787" Offset="1" />
+        </RadialGradientBrush>
+    </UserControl.Resources>
+
+    <Viewbox Stretch="Uniform">
+        <Grid x:Name="stage" Width="300" Height="220" RenderTransformOrigin="0.5,0.6">
+            <Grid.RenderTransform>
+                <ScaleTransform x:Name="stageScale" ScaleX="1" ScaleY="1" />
+            </Grid.RenderTransform>
+
+            <!-- ===== In-ear models: case + two buds ===== -->
+            <Canvas x:Name="earbuds">
+                <!-- soft floor shadow -->
+                <Ellipse Canvas.Left="70" Canvas.Top="196" Width="160" Height="18" Fill="#66000000">
+                    <Ellipse.Effect><BlurEffect Radius="12" /></Ellipse.Effect>
+                </Ellipse>
+                <!-- case -->
+                <Border Canvas.Left="62" Canvas.Top="96" Width="176" Height="106" CornerRadius="16,16,40,40" Background="{StaticResource CaseBody}" />
+                <Border Canvas.Left="62" Canvas.Top="96" Width="176" Height="106" CornerRadius="16,16,40,40" Background="{StaticResource CaseSide}" />
+                <Rectangle Canvas.Left="62" Canvas.Top="118" Width="176" Height="1.2" Fill="#55000000" />
+                <Rectangle Canvas.Left="134" Canvas.Top="113" Width="32" Height="5" RadiusX="2" RadiusY="2" Fill="#40000000" />
+                <Ellipse x:Name="led" Canvas.Left="147.5" Canvas.Top="150" Width="5" Height="5" Fill="#FF3CE07A">
+                    <Ellipse.Effect><DropShadowEffect Color="#FF3CE07A" BlurRadius="8" ShadowDepth="0" /></Ellipse.Effect>
+                </Ellipse>
+
+                <!-- left bud -->
+                <Canvas x:Name="leftBud" Canvas.Left="72" Canvas.Top="10" Width="64" Height="112">
+                    <Canvas.RenderTransform>
+                        <TransformGroup>
+                            <RotateTransform Angle="-12" CenterX="32" CenterY="56" />
+                            <TranslateTransform x:Name="leftFloat" />
+                        </TransformGroup>
+                    </Canvas.RenderTransform>
+                    <Rectangle x:Name="leftStem" Canvas.Left="34" Canvas.Top="38" Width="15" Height="62" RadiusX="7.5" RadiusY="7.5" Fill="{StaticResource Stem}" />
+                    <Ellipse Canvas.Left="12" Canvas.Top="2" Width="46" Height="44" Fill="{StaticResource Gloss}" />
+                    <Ellipse x:Name="leftTip" Canvas.Left="0" Canvas.Top="12" Width="26" Height="24" Fill="{StaticResource Tip}" />
+                    <Ellipse x:Name="leftMesh" Canvas.Left="5" Canvas.Top="17" Width="13" Height="12" Fill="#FF2A303C" />
+                    <Ellipse x:Name="leftGrille" Canvas.Left="16" Canvas.Top="16" Width="10" Height="6" Fill="#FF3A404C" Visibility="Collapsed" />
+                </Canvas>
+
+                <!-- right bud (mirrored) -->
+                <Canvas x:Name="rightBud" Canvas.Left="164" Canvas.Top="10" Width="64" Height="112">
+                    <Canvas.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform ScaleX="-1" CenterX="32" />
+                            <RotateTransform Angle="12" CenterX="32" CenterY="56" />
+                            <TranslateTransform x:Name="rightFloat" />
+                        </TransformGroup>
+                    </Canvas.RenderTransform>
+                    <Rectangle x:Name="rightStem" Canvas.Left="34" Canvas.Top="38" Width="15" Height="62" RadiusX="7.5" RadiusY="7.5" Fill="{StaticResource Stem}" />
+                    <Ellipse Canvas.Left="12" Canvas.Top="2" Width="46" Height="44" Fill="{StaticResource Gloss}" />
+                    <Ellipse x:Name="rightTip" Canvas.Left="0" Canvas.Top="12" Width="26" Height="24" Fill="{StaticResource Tip}" />
+                    <Ellipse x:Name="rightMesh" Canvas.Left="5" Canvas.Top="17" Width="13" Height="12" Fill="#FF2A303C" />
+                    <Ellipse x:Name="rightGrille" Canvas.Left="16" Canvas.Top="16" Width="10" Height="6" Fill="#FF3A404C" Visibility="Collapsed" />
+                </Canvas>
+            </Canvas>
+
+            <!-- ===== Over-ear (AirPods Max) ===== -->
+            <Canvas x:Name="headphones" Visibility="Collapsed">
+                <Ellipse Canvas.Left="70" Canvas.Top="196" Width="160" Height="18" Fill="#66000000">
+                    <Ellipse.Effect><BlurEffect Radius="12" /></Ellipse.Effect>
+                </Ellipse>
+                <Canvas x:Name="maxGroup">
+                    <Canvas.RenderTransform><TranslateTransform x:Name="maxFloat" /></Canvas.RenderTransform>
+                    <Path Data="M 84,118 C 84,30 216,30 216,118" Stroke="#FFCDD3DC" StrokeThickness="12" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    <Path Data="M 92,112 C 94,48 206,48 208,112" Stroke="#FF5A6170" StrokeThickness="5" Opacity="0.7" />
+                    <Border Canvas.Left="64" Canvas.Top="104" Width="50" Height="84" CornerRadius="22" Background="{StaticResource CaseBody}" />
+                    <Border Canvas.Left="186" Canvas.Top="104" Width="50" Height="84" CornerRadius="22" Background="{StaticResource CaseBody}" />
+                    <Border Canvas.Left="104" Canvas.Top="112" Width="16" Height="68" CornerRadius="8" Background="#FF5D6472" />
+                    <Border Canvas.Left="180" Canvas.Top="112" Width="16" Height="68" CornerRadius="8" Background="#FF5D6472" />
+                </Canvas>
+            </Canvas>
+        </Grid>
+    </Viewbox>
+</UserControl>

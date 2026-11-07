@@ -1,0 +1,13 @@
+﻿bin/
+obj/
+dist/
+*.user
+.vs/
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
+.idea/
+android/app/release/
