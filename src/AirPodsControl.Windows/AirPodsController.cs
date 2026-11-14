@@ -1,3 +1,4 @@
+using AirPodsControl.Core.Bridge;
 using AirPodsControl.Core.Models;
 using AirPodsControl.Core.Protocol;
 using AirPodsControl.Core.Services;
@@ -40,6 +41,231 @@ public sealed class AirPodsController : IAsyncDisposable
         Battery.Changed += _ => Raise();
         NoiseControl.ModeChanged += _ => Raise();
         _tick = new Timer(_ => OnTick(), null, Timeout.Infinite, Timeout.Infinite);
+        Bridge = new WslBridgeProvider(log);
+        MagicAap = new MagicAapProvider(NoiseControl, () => Channel == ChannelState.Ready
+            ? new ProviderStatus(true, "channel open")
+            : ProviderStatus.NotReady(AapControlChannel.IsMagicAapInstalled ? (ChannelMessage.Length > 0 ? ChannelMessage : "channel not open") : "driver not installed"));
+    }
+
+    // ------------------------------------------------------------------ mode switching backends (Strategy)
+
+    public MagicAapProvider MagicAap { get; }
+    public WslBridgeProvider Bridge { get; }
+    public IReadOnlyList<IModeSwitchProvider> Providers => [MagicAap, Bridge];
+    public ControlBackend BackendPreference { get; set; } = ControlBackend.Auto;
+    public IModeSwitchProvider? ActiveProvider => BackendSelector.Select(BackendPreference, Providers);
+    public string BackendExplanation => BackendSelector.Explain(BackendPreference, Providers);
+
+    /// <summary>True while a WSL bridge hand-over is in progress (Windows Bluetooth is temporarily gone).</summary>
+    public bool IsSwitching { get; private set; }
+    public string? SwitchProgress { get; private set; }
+    private volatile bool _handoff;
+    private ListeningMode? _bridgeMode;
+
+    /// <summary>
+    /// Last listening mode reported by the AirPods: live over MagicAAP, or the value returned by the last WSL bridge
+    /// session (<see cref="CurrentModeAt"/>; it can be changed later by a stem press without the app knowing).
+    /// </summary>
+    public ListeningMode? CurrentMode => Channel == ChannelState.Ready ? NoiseControl.CurrentMode : _bridgeMode;
+    public bool CurrentModeIsLive => Channel == ChannelState.Ready;
+    public DateTimeOffset? CurrentModeAt { get; private set; }
+    /// <summary>False when <see cref="CurrentMode"/> is the last mode sent over the bridge without an echo.</summary>
+    public bool CurrentModeConfirmed { get; private set; } = true;
+
+    /// <summary>Seconds until the AirPods were connected to Windows again after the last hand-over (null = not back).</summary>
+    public double? LastReconnectSeconds { get; private set; }
+
+    /// <summary>
+    /// A mode chosen while a WSL mode switch is running: merged into that hand-over while the adapter is still in WSL
+    /// (latest wins, repeats ignored). Never starts a second hand-over and never queues anything for later.
+    /// </summary>
+    public MergeResult TryMergeMode(ListeningMode mode, bool autoEnableOffOption, string initiator)
+    {
+        if (Device is not { } dev || ActiveProvider is not WslBridgeProvider) return MergeResult.NotAccepting;
+        if (Model is { } m && !AirPodsCatalog.SupportsMode(m, mode)) return MergeResult.NotAccepting;
+        var r = Bridge.Coordinator.TryMerge(new ModeSwitchRequest(dev.Address, DeviceName ?? "AirPods", Model, mode, autoEnableOffOption, initiator));
+        _log.Info($"mode {mode} from {initiator} while switching: {r}");
+        return r;
+    }
+
+    public async Task<NoiseControlResult> SetModeAsync(ListeningMode mode, bool autoEnableOffOption, CancellationToken ct = default, string initiator = "app")
+    {
+        if (Device is not { } dev || Link != LinkState.Connected)
+            return new(NoiseControlOutcome.NoControlChannel, mode, CurrentMode, "AirPods are not connected to Windows.");
+        if (Model is { } m && !AirPodsCatalog.SupportsMode(m, mode))
+            return new(NoiseControlOutcome.NotSupportedByModel, mode, CurrentMode, $"{m.Name} does not support {NoiseControlManager.Describe(mode)}.");
+        var provider = ActiveProvider;
+        if (provider is null)
+            return new(NoiseControlOutcome.NoControlChannel, mode, CurrentMode, "No mode-switching backend is ready. " + BackendExplanation);
+
+        var request = new ModeSwitchRequest(dev.Address, DeviceName ?? "AirPods", Model, mode, autoEnableOffOption, initiator);
+        if (!provider.InterruptsAudio) return await provider.SetModeAsync(request, null, ct).ConfigureAwait(false);
+        // one bridge operation at a time: reject instead of touching the UI state of the running one
+        if (Bridge.IsBusy || IsSwitching)
+            return new(NoiseControlOutcome.NotStarted, mode, CurrentMode, "Another WSL bridge operation is running" +
+                (Bridge.Coordinator.Current is { } cur ? $" ({cur.Kind} by {cur.Initiator})." : "."));
+
+        // WSL bridge: Windows loses the adapter for the duration of the command.
+        var (result, back) = await WithAdapterHandoffAsync("Switching mode via WSL bridge…",
+            p => provider.SetModeAsync(request, p, ct)).ConfigureAwait(false);
+
+        if (result.Outcome is NoiseControlOutcome.Confirmed or NoiseControlOutcome.DeviceReportedDifferentMode && result.Reported is { } rep)
+        {
+            _bridgeMode = rep; CurrentModeAt = DateTimeOffset.Now; CurrentModeConfirmed = true;
+            Raise();
+        }
+        else if (result.Outcome == NoiseControlOutcome.Sent)
+        {
+            // last command we delivered; the AirPods do not report it back (see NoiseControlOutcome.Sent).
+            // Requested, not `mode`: a newer queued request may have been applied in the same hand-over.
+            _bridgeMode = result.Requested; CurrentModeAt = DateTimeOffset.Now; CurrentModeConfirmed = false;
+            Raise();
+        }
+        // no automatic repeat of anything: a missing confirmation is reported as "sent", not retried
+        return back ? result : result with
+        {
+            Message = result.Message + " The AirPods did not reconnect to Windows by themselves — open the case or reconnect them in Bluetooth settings.",
+        };
+    }
+
+    /// <summary>Exact (1 %) battery over AAP through the WSL bridge: one hand-over, explicitly requested by the user.</summary>
+    public async Task<(bool ok, string message)> ReadExactBatteryAsync(string initiator, CancellationToken ct = default)
+    {
+        if (Device is not { } dev || Link != LinkState.Connected) return (false, "AirPods are not connected to Windows.");
+        if (Bridge.Status is { Ready: false } st) return (false, "WSL bridge not ready: " + st.Message);
+        if (Bridge.IsBusy || IsSwitching) return (false, "Another WSL bridge operation is running.");
+        var ((res, err), back) = await WithAdapterHandoffAsync("Reading exact battery via WSL bridge…",
+            p => Bridge.ReadBatteryAsync(dev.Address, initiator, p, ct)).ConfigureAwait(false);
+        if (res is { Battery.Count: > 0 } && err is null)
+            return (true, $"Exact battery received ({DateTime.Now:HH:mm:ss})." + (back ? "" : " The AirPods have not reconnected to Windows yet."));
+        return (false, err ?? (res is null ? "No answer from the WSL bridge." : "The AirPods sent no battery report (" + res.Outcome + ")."));
+    }
+
+    /// <summary>
+    /// Writes the press-and-hold cycle (and "Allow Off" when Off is in it) in one WSL-bridge hand-over.
+    /// Only on an explicit user action (never at start-up, on connect or when a checkbox changes). Does not change the current listening mode.
+    /// </summary>
+    /// <param name="modes">The exact cycle chosen by the user; null = keep what the AirPods report and add Off, or write nothing.</param>
+    public async Task<OffCycleResult> ApplyHoldCycleAsync(CycleModes? modes, string initiator, bool allowInputLoss = false, CancellationToken ct = default)
+    {
+        if (Device is not { } dev || Link != LinkState.Connected) return OffCycleResult.NotStarted("AirPods are not connected to Windows.");
+        if (Bridge.Status is { Ready: false } st) return OffCycleResult.NotStarted("Writing the press-and-hold cycle uses the WSL bridge, which is not ready: " + st.Message);
+        if (Bridge.IsBusy || IsSwitching)
+            return OffCycleResult.NotStarted("Another WSL bridge operation is running" + (Bridge.Coordinator.Current is { } cur ? $" ({cur.Kind} by {cur.Initiator})." : "."));
+        var request = new OffCycleRequest(dev.Address, modes, initiator, allowInputLoss);
+        if (OffCyclePlanner.ValidateRequest(request, Model) is { } err) return OffCycleResult.NotStarted(err);
+        var (result, back) = await WithAdapterHandoffAsync("Writing the press-and-hold cycle via WSL bridge…",
+            p => Bridge.ApplyHoldCycleAsync(request, Model, p, ct)).ConfigureAwait(false);
+        _log.Info($"press-and-hold cycle: {result.Status} — {result.Message}");
+        return back || !Bridge.LastOperationDisrupted ? result : result with
+        {
+            Message = result.Message + " The AirPods did not reconnect to Windows by themselves — open the case or reconnect them in Bluetooth settings.",
+        };
+    }
+
+    /// <summary>
+    /// BLE battery: no hand-over. BLE cannot ask the AirPods for a value — this only listens for their next advertisement.
+    /// Returns the time of a new one, or null if none arrived within <paramref name="wait"/> (old values stay, marked stale).
+    /// </summary>
+    public async Task<DateTimeOffset?> WaitForBleBatteryAsync(TimeSpan wait, CancellationToken ct = default)
+    {
+        if (IsSwitching || Radio is not RadioStatus.On) return null;
+        var before = Battery.LastBleAt;
+        _ble.Start();
+        var end = DateTime.UtcNow + wait;
+        while (DateTime.UtcNow < end)
+        {
+            if (Battery.LastBleAt is { } t && t != before) return t;
+            await Task.Delay(200, ct).ConfigureAwait(false);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Runs an operation that hands the USB Bluetooth adapter to WSL: suppresses the expected "Bluetooth off /
+    /// disconnected" churn, then re-acquires the radio, restarts BLE, applies exact battery from the bridge session
+    /// and waits up to 20 s for the AirPods to reconnect. Returns the operation result and whether they came back.
+    /// </summary>
+    public async Task<(T result, bool reconnected)> WithAdapterHandoffAsync<T>(string status, Func<IProgress<string>, Task<T>> operation)
+    {
+        // only one hand-over UI at a time; a second caller is rejected by the bridge coordinator anyway
+        if (Interlocked.CompareExchange(ref _handoffUi, 1, 0) != 0)
+            return (await operation(new Progress<string>(_ => { })).ConfigureAwait(false), Link == LinkState.Connected);
+        try { return await WithAdapterHandoffCoreAsync(status, operation).ConfigureAwait(false); }
+        finally { Interlocked.Exchange(ref _handoffUi, 0); }
+    }
+
+    private int _handoffUi;
+
+    private async Task<(T result, bool reconnected)> WithAdapterHandoffCoreAsync<T>(string status, Func<IProgress<string>, Task<T>> operation)
+    {
+        IsSwitching = true; SwitchProgress = status; _handoff = true;
+        _ble.Stop();
+        Raise();
+        T result;
+        try
+        {
+            result = await operation(new Progress<string>(s => { SwitchProgress = s; Raise(); })).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (Bridge.LastOperationDisrupted)
+            {
+                SwitchProgress = "Reconnecting AirPods to Windows…"; Raise();
+                try { await _devices.ResetAfterAdapterChangeAsync().ConfigureAwait(false); } catch (Exception ex) { _log.Warn("Adapter reset failed", ex); }
+            }
+            _handoff = false;
+            await RefreshAsync().ConfigureAwait(false);
+        }
+        if (!Bridge.LastOperationDisrupted)
+        {
+            // stopped before Bluetooth was touched (busy, input devices, adapter unclear): nothing to reconnect
+            IsSwitching = false; SwitchProgress = null; Raise();
+            return (result, Link == LinkState.Connected);
+        }
+        if (Bridge.LastResult is { Battery.Count: > 0 } br)
+            Battery.OnAapEntries(br.Battery
+                .Where(b => b.Component is "left" or "right" or "case")
+                .Select(b => new BatteryEntry(b.Component switch { "left" => BatteryComponent.Left, "right" => BatteryComponent.Right, _ => BatteryComponent.Case },
+                    b.Level, b.Charging ? BatteryStatus.Charging : BatteryStatus.NotCharging)));
+        if (Bridge.LastResult?.CurrentMode is { } cm && Bridge.LastResult.Ok) { _bridgeMode = cm; CurrentModeAt = DateTimeOffset.Now; CurrentModeConfirmed = true; }
+        var linkTimer = System.Diagnostics.Stopwatch.StartNew();
+        // Link may still say Connected from before the hand-over (live test: kick skipped, 5 s instead of 2 s); the kick
+        // itself checks the device's real connection status
+        Task<string>? kick = Bridge.Config.ReconnectKick && Device is { } kd ? KickAfterHandoffAsync(kd.Address) : null;
+        bool back = await WaitForLinkAsync(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+        LastReconnectSeconds = back ? linkTimer.Elapsed.TotalSeconds : null;
+        _log.Info($"AirPods {(back ? "back on Windows" : "NOT back on Windows")} {linkTimer.Elapsed.TotalSeconds:0.0}s after the hand-over; " +
+                  $"connection kick: {(kick is null ? "off" : kick.IsCompleted ? kick.Result : "still running")}");
+        IsSwitching = false; SwitchProgress = null;
+        Raise();
+        return (result, back);
+    }
+
+    /// <summary>Once the radio is back on, asks Windows to connect to the AirPods instead of waiting for them.</summary>
+    private async Task<string> KickAfterHandoffAsync(ulong address)
+    {
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds(6);
+        while (Radio is not RadioStatus.On && DateTime.UtcNow < until) await Task.Delay(250).ConfigureAwait(false);
+        var op = Bridge.LastTrace;
+        op?.App("reconnect_kick", "uncached SDP query from Windows");
+        var r = await _devices.KickConnectionAsync(address, TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+        op?.App("reconnect_kick_done", r);
+        return r;
+    }
+
+    private async Task<bool> WaitForLinkAsync(TimeSpan timeout)
+    {
+        var end = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < end)
+        {
+            if (Link == LinkState.Connected) return true;
+            await Task.Delay(1000).ConfigureAwait(false);
+            // The adapter re-enumerates after the hand-back; pick up the new radio once it exists.
+            if (Radio is not RadioStatus.On) await _devices.ResetAfterAdapterChangeAsync().ConfigureAwait(false);
+            await RefreshAsync().ConfigureAwait(false);
+        }
+        return Link == LinkState.Connected;
     }
 
     public BatteryMonitor Battery { get; }
@@ -68,6 +294,7 @@ public sealed class AirPodsController : IAsyncDisposable
 
     public async Task StartAsync()
     {
+        await Bridge.RecoverAsync(CancellationToken.None).ConfigureAwait(false); // adapter left in WSL by a crash?
         await _devices.StartAsync().ConfigureAwait(false);
         await RefreshAsync().ConfigureAwait(false);
         _tick.Change(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
@@ -75,6 +302,7 @@ public sealed class AirPodsController : IAsyncDisposable
 
     private void OnTick()
     {
+        if (_handoff) return;
         Battery.Tick();
         // Picks up a driver installed while the app runs, devices paired elsewhere, etc. (device-tree query only)
         if (Link == LinkState.Connected && Channel is ChannelState.Unavailable) _ = RefreshAsync();
@@ -82,7 +310,7 @@ public sealed class AirPodsController : IAsyncDisposable
 
     public async Task RefreshAsync()
     {
-        if (_disposed) return;
+        if (_disposed || _handoff) return; // adapter is in WSL: "Bluetooth off"/"disconnected" events are expected
         await _refreshGate.WaitAsync().ConfigureAwait(false);
         try { await RefreshCoreAsync().ConfigureAwait(false); }
         catch (Exception ex) { _log.Error("Refresh failed", ex); }
@@ -96,7 +324,7 @@ public sealed class AirPodsController : IAsyncDisposable
             case RadioStatus.NoAdapter:
                 Link = LinkState.NoAdapter; _ble.Stop(); await CloseChannelAsync("No Bluetooth adapter."); return;
             case RadioStatus.Off:
-                Link = LinkState.BluetoothOff; _ble.Stop(); await CloseChannelAsync("Bluetooth is off."); Battery.Reset(); return;
+                Link = LinkState.BluetoothOff; _ble.Stop(); await CloseChannelAsync("Bluetooth is off."); Battery.MarkAllStale(); return;
         }
         _ble.Start();
 
@@ -131,6 +359,7 @@ public sealed class AirPodsController : IAsyncDisposable
             await CloseChannelAsync("Device changed.");
         }
         Device = chosen;
+        Bridge.CurrentDevice = chosen.Address;
         DeviceName = name ?? chosen.Model.Name;
         if (Model is null || Model.ProductId != chosen.ProductId) Model = chosen.Model;
         NoiseControl.Model = Model;
@@ -237,8 +466,6 @@ public sealed class AirPodsController : IAsyncDisposable
         LeftInEar = msg.LeftInEar; RightInEar = msg.RightInEar;
         Battery.OnBleAdvertisement(msg);
     }
-
-    public Task<NoiseControlResult> SetModeAsync(ListeningMode mode, CancellationToken ct = default) => NoiseControl.SetModeAsync(mode, ct);
 
     public async ValueTask DisposeAsync()
     {

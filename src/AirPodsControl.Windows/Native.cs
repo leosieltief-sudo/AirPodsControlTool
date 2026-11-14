@@ -72,6 +72,50 @@ internal static partial class Native
         catch { return null; }
     }
 
+    [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode)] private static extern int CM_Locate_DevNodeW(out uint devInst, string deviceId, int flags);
+    [DllImport("CfgMgr32.dll")] private static extern int CM_Get_Parent(out uint parent, uint devInst, int flags);
+    [DllImport("CfgMgr32.dll")] private static extern int CM_Get_Child(out uint child, uint devInst, int flags);
+    [DllImport("CfgMgr32.dll")] private static extern int CM_Get_Sibling(out uint sibling, uint devInst, int flags);
+    [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode)] private static extern int CM_Get_Device_IDW(uint devInst, [Out] char[] buffer, int len, int flags);
+
+    private static string? IdOf(uint devInst)
+    {
+        var buf = new char[512];
+        return CM_Get_Device_IDW(devInst, buf, buf.Length, 0) == CR_SUCCESS ? new string(buf).TrimEnd('\0') : null;
+    }
+
+    /// <summary>The node itself, its parent, grandparent … up to the root. Empty when the node is not present.</summary>
+    public static IReadOnlyList<string> GetAncestorChain(string instanceId)
+    {
+        var chain = new List<string>();
+        if (CM_Locate_DevNodeW(out uint cur, instanceId, 0) != CR_SUCCESS) return chain;
+        for (int depth = 0; depth < 32; depth++)
+        {
+            if (IdOf(cur) is not { } id) break;
+            chain.Add(id);
+            if (CM_Get_Parent(out uint parent, cur, 0) != CR_SUCCESS) break;
+            cur = parent;
+        }
+        return chain;
+    }
+
+    /// <summary>All present nodes below <paramref name="instanceId"/> (depth-first). Null when the node is not present.</summary>
+    public static IReadOnlyList<string>? GetDescendants(string instanceId, int max = 2000)
+    {
+        if (CM_Locate_DevNodeW(out uint root, instanceId, 0) != CR_SUCCESS) return null;
+        var result = new List<string>();
+        var stack = new Stack<uint>();
+        if (CM_Get_Child(out uint first, root, 0) == CR_SUCCESS) stack.Push(first);
+        while (stack.Count > 0 && result.Count < max)
+        {
+            uint n = stack.Pop();
+            if (IdOf(n) is { } id) result.Add(id);
+            if (CM_Get_Sibling(out uint sib, n, 0) == CR_SUCCESS) stack.Push(sib);
+            if (CM_Get_Child(out uint child, n, 0) == CR_SUCCESS) stack.Push(child);
+        }
+        return result;
+    }
+
     public static bool IsServiceInstalled(string serviceName)
     {
         try

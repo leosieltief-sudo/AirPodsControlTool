@@ -64,28 +64,44 @@ public sealed partial class BluetoothDeviceManager : IDisposable
             .ToList();
     }
 
-    public async Task StartAsync()
+    private void OnRadioState(Radio r, object _)
+    {
+        if (ReferenceEquals(r, _radio)) SetRadio(r.State == RadioState.On ? RadioStatus.On : RadioStatus.Off);
+    }
+
+    private async Task InitRadioAsync()
     {
         try
         {
+            if (_radio is not null) { _radio.StateChanged -= OnRadioState; _radio = null; }
             var adapter = await BluetoothAdapter.GetDefaultAsync();
-            if (adapter is null) { SetRadio(RadioStatus.NoAdapter); }
-            else
-            {
-                _radio = await adapter.GetRadioAsync();
-                if (_radio is null) SetRadio(RadioStatus.Unknown);
-                else
-                {
-                    _radio.StateChanged += (r, _) => SetRadio(r.State == RadioState.On ? RadioStatus.On : RadioStatus.Off);
-                    SetRadio(_radio.State == RadioState.On ? RadioStatus.On : RadioStatus.Off);
-                }
-            }
+            if (adapter is null) { SetRadio(RadioStatus.NoAdapter); return; }
+            _radio = await adapter.GetRadioAsync();
+            if (_radio is null) { SetRadio(RadioStatus.Unknown); return; }
+            _radio.StateChanged += OnRadioState;
+            SetRadio(_radio.State == RadioState.On ? RadioStatus.On : RadioStatus.Off);
         }
         catch (Exception ex)
         {
             _log.Warn("Could not query Bluetooth radio", ex);
             SetRadio(RadioStatus.Unknown);
         }
+    }
+
+    /// <summary>
+    /// After the USB adapter was handed to WSL and back, Windows creates a new adapter/radio instance:
+    /// drop stale WinRT objects and look everything up again.
+    /// </summary>
+    public async Task ResetAfterAdapterChangeAsync()
+    {
+        await _gate.WaitAsync();
+        try { Untrack(); } finally { _gate.Release(); }
+        await InitRadioAsync();
+    }
+
+    public async Task StartAsync()
+    {
+        await InitRadioAsync();
 
         try
         {
@@ -128,6 +144,27 @@ public sealed partial class BluetoothDeviceManager : IDisposable
             return (null, false);
         }
         finally { _gate.Release(); }
+    }
+
+    /// <summary>
+    /// Makes Windows page the device right away (an uncached RFCOMM/SDP query needs a baseband connection) instead of
+    /// waiting for it to come back by itself after the adapter returned from WSL. Windows then restores the audio
+    /// profiles over that connection. Returns a short description for the log. Needs no administrator rights.
+    /// </summary>
+    public async Task<string> KickConnectionAsync(ulong address, TimeSpan timeout)
+    {
+        try
+        {
+            using var dev = await BluetoothDevice.FromBluetoothAddressAsync(address);
+            if (dev is null) return "device not found";
+            if (dev.ConnectionStatus == BluetoothConnectionStatus.Connected) return "already connected";
+            var query = dev.GetRfcommServicesAsync(BluetoothCacheMode.Uncached).AsTask();
+            var done = await Task.WhenAny(query, Task.Delay(timeout)).ConfigureAwait(false);
+            if (done != query) return "SDP query still running after " + timeout.TotalSeconds + " s";
+            var r = await query.ConfigureAwait(false);
+            return $"SDP query {r.Error}, {r.Services.Count} RFCOMM services, status {dev.ConnectionStatus}";
+        }
+        catch (Exception ex) { return "kick failed: " + ex.Message; }
     }
 
     public bool? TrackedConnected => _tracked is null ? null : _tracked.ConnectionStatus == BluetoothConnectionStatus.Connected;

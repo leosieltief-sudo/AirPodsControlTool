@@ -43,8 +43,9 @@
 | Feature flags (0x4D) | `04 00 04 00 4D 00 D7 00 00 00 00 00 00 00` | так в коде LibrePods; в документации снят дамп с `FF` |
 | Подписка на уведомления (0x0F) | `04 00 04 00 0F 00 FF FF FF FF` | вариант из документации («This packet also works»); `airpods_packets.h` использует 5×FF |
 | Listening mode (ctrl 0x0D) | `04 00 04 00 09 00 0D [m] 00 00 00` | m: 01 Off, 02 ANC, 03 Transparency, 04 Adaptive. AirPods возвращают такой же пакет |
+| Click-hold action (ctrl 0x16) | `04 00 04 00 09 00 16 [R] [L] 00 00` | 01 управление шумом, 05 Siri. Приложение только читает |
 | Allow Off Option (ctrl 0x34) | `04 00 04 00 09 00 34 01 00 00 00` / `…34 02…` | 01 разрешить, 02 запретить |
-| Listening-mode cycle (ctrl 0x1A) | `04 00 04 00 09 00 1A [mask] 00 00 00` | маска Off=1, ANC=2, Transp=4, Adaptive=8. **Приложение её не меняет** |
+| Listening-mode cycle (ctrl 0x1A) | `04 00 04 00 09 00 1A [mask] 00 00 00` | маска Off=1, ANC=2, Transp=4, Adaptive=8. Пишется только по кнопке Settings → Apply to AirPods (см. BRIDGE-OPERATIONS §5a) |
 | Батарея (0x04) | `04 00 04 00 04 00 [n] ([comp] 01 [lvl] [status] 01)×n` | comp: 02 R, 04 L, 08 Case; status: 01 charging, 02 not charging, 04 disconnected, 05 optimized |
 | Ear detection (0x06) | `04 00 04 00 06 00 [primary] [secondary]` | 00 in ear, 01 out, 02 in case |
 | Metadata (0x1D) | `04 00 04 00 1D 00 ?? ?? ?? ?? ??` + строки с NUL | имя, номер модели (A3048 …), производитель, серийник, прошивка |

@@ -28,6 +28,9 @@ public static class AapOpcode
 public static class ControlId
 {
     public const byte ListeningMode = 0x0D;
+    /// <summary>Press-and-hold action per stem: data1 = right bud, data2 = left bud; 0x01 noise control, 0x05 Siri.</summary>
+    public const byte ClickHoldMode = 0x16;
+    /// <summary>Modes the press-and-hold gesture cycles through: bitmask Off 0x01, ANC 0x02, Transparency 0x04, Adaptive 0x08.</summary>
     public const byte ListeningModeConfigs = 0x1A;
     public const byte ConversationAwareness = 0x28;
     public const byte AllowOffOption = 0x34;
@@ -65,6 +68,10 @@ public static class AapPackets
 
     /// <summary>0x34 "Allow Off Option for Listening Mode config": 0x01 enabled, 0x02 disabled.</summary>
     public static byte[] SetAllowOffOption(bool enabled) => ControlCommand(ControlId.AllowOffOption, enabled ? (byte)0x01 : (byte)0x02);
+
+    /// <summary>0x1A "ListeningModeConfigs": the press-and-hold cycle as a bitmask (see <see cref="ControlId.ListeningModeConfigs"/>).
+    /// LibrePods docs/AAP Definitions.md "Configure Stem Long Press": e.g. 1A 0B = Off + ANC + Adaptive.</summary>
+    public static byte[] SetListeningModeCycle(byte mask) => ControlCommand(ControlId.ListeningModeConfigs, mask);
 
     public static string ToHex(ReadOnlySpan<byte> data) => Convert.ToHexString(data);
 

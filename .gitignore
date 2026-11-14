@@ -1,4 +1,4 @@
-﻿bin/
+bin/
 obj/
 dist/
 *.user
@@ -11,3 +11,8 @@ local.properties
 *.jks
 .idea/
 android/app/release/
+# WSL kernel build output (attached to the release zip by build.ps1, not committed)
+assets/wsl-kernel/
+*.bzImage
+bzImage
+*.vhdx

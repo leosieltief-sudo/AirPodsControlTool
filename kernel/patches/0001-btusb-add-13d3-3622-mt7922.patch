@@ -1,0 +1,22 @@
+From: AirPods Control
+Subject: [PATCH] Bluetooth: btusb: add IMC Networks 13d3:3622 (MediaTek MT7922)
+
+The ID is used by MT7922 combo cards (Windows: "MediaTek Bluetooth Adapter",
+USB\VID_13D3&PID_3622). Without the entry btusb binds through the generic class
+match and never runs the MediaTek setup (firmware download). Flags copied from
+the neighbouring MT7922A entries.
+
+diff --git a/drivers/bluetooth/btusb.c b/drivers/bluetooth/btusb.c
+index 4c21230ae..a2a402ad2 100644
+--- a/drivers/bluetooth/btusb.c
++++ b/drivers/bluetooth/btusb.c
+@@ -685,6 +685,9 @@ static const struct usb_device_id quirks_table[] = {
+ 	{ USB_DEVICE(0x13d3, 0x3607), .driver_info = BTUSB_MEDIATEK |
+ 						     BTUSB_WIDEBAND_SPEECH |
+ 						     BTUSB_VALID_LE_STATES },
++	{ USB_DEVICE(0x13d3, 0x3622), .driver_info = BTUSB_MEDIATEK |
++						     BTUSB_WIDEBAND_SPEECH |
++						     BTUSB_VALID_LE_STATES },
+ 
+ 	/* Additional MediaTek MT7925 Bluetooth devices */
+ 	{ USB_DEVICE(0x0489, 0xe111), .driver_info = BTUSB_MEDIATEK |

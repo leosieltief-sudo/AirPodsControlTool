@@ -1,0 +1,62 @@
+<Window x:Class="AirPodsControl.App.BridgeSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AirPods Control — Driverless setup" Width="560" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen" FontFamily="{StaticResource UiFont}" ShowInTaskbar="True">
+    <Grid Margin="16">
+        <Border CornerRadius="20" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1">
+            <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.5" /></Border.Effect>
+        </Border>
+        <StackPanel Margin="22,16,22,20">
+            <Grid MouseLeftButtonDown="Drag">
+                <StackPanel>
+                    <TextBlock Text="Driverless mode" FontFamily="{StaticResource MonoFont}" FontSize="15" Foreground="{StaticResource TextBrush}" />
+                    <TextBlock Text="WSL2 + usbipd · no Test Mode · no Secure Boot change · no driver" FontSize="11" Foreground="{StaticResource LabelBrush}" Margin="0,3,0,0" />
+                </StackPanel>
+                <Button Style="{StaticResource IconButton}" Content="&#xE711;" HorizontalAlignment="Right" VerticalAlignment="Top" Click="Close_Click" />
+            </Grid>
+
+            <TextBlock Margin="0,14,0,0" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextBrush}" LineHeight="18">
+                For each mode switch, AirPods Control hands your USB Bluetooth adapter to a tiny Alpine Linux (WSL2) for a few
+                seconds, sends the AAP command there (L2CAP 0x1001) and gives the adapter back to Windows.
+                <Run Foreground="#FFFFC857">While that happens Windows has no Bluetooth: audio stops for roughly 10–20 seconds and the AirPods reconnect.</Run>
+            </TextBlock>
+            <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource SubtleTextBrush}" LineHeight="17">
+                Setup downloads Alpine minirootfs (~4 MB, SHA-256 checked) and BlueZ + Python (~40 MB) into a separate WSL distribution
+                'airpods-bridge', installs usbipd-win (GPL-3.0, via winget) if missing, and asks once for administrator rights to share
+                the adapter with usbipd and to copy only these AirPods' pairing key into that Linux distribution.
+                Remove deletes the distribution (and the key) and un-shares the adapter.
+            </TextBlock>
+            <TextBlock x:Name="deviceText" Margin="0,10,0,0" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource LabelBrush}" />
+
+            <ItemsControl x:Name="stepsList" Margin="0,14,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,0,0,9">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="26" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Glyph}" Foreground="{Binding GlyphBrush}" FontFamily="{StaticResource IconFont}" FontSize="13" Margin="0,2,0,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Title}" Foreground="{StaticResource TextBrush}" FontSize="12.5" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource SubtleTextBrush}" FontSize="11.5" TextWrapping="Wrap" Margin="0,2,0,0"
+                                           Visibility="{Binding HasDetail}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ProgressBar x:Name="busyBar" IsIndeterminate="True" Height="3" Margin="0,4,0,0" BorderThickness="0" Background="#22FFFFFF"
+                         Foreground="{StaticResource AccentBrush}" Visibility="Collapsed" />
+
+            <WrapPanel HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button x:Name="removeBtn" Style="{StaticResource LinkButton}" Content="Remove driverless mode" Click="Remove_Click" Margin="0,0,8,6" />
+                <Button x:Name="testBtn" Style="{StaticResource LinkButton}" Content="Test again" Click="Test_Click" Margin="0,0,8,6" />
+                <Button x:Name="runBtn" Style="{StaticResource LinkButton}" Content="Run setup" Click="Run_Click" FontWeight="Bold" Margin="0,0,0,6" />
+            </WrapPanel>
+        </StackPanel>
+    </Grid>
+</Window>

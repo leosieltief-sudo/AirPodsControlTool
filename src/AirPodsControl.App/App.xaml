@@ -68,6 +68,13 @@
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="bd" Property="Background" Value="#26FFFFFF" />
                                 </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#33FFFFFF" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4" />
+                                    <Setter Property="Cursor" Value="Arrow" />
+                                </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>

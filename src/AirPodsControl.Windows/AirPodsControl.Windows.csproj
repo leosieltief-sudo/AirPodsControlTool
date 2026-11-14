@@ -8,6 +8,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Driverless (WSL2) bridge assets, copied into the WSL distribution / run elevated by the setup wizard -->
+    <EmbeddedResource Include="..\..\bridge\linux\aap_bridge.py" LogicalName="bridge/aap_bridge.py" />
+    <EmbeddedResource Include="..\..\bridge\linux\aapd.py" LogicalName="bridge/aapd.py" />
+    <EmbeddedResource Include="..\..\bridge\linux\bridge.sh" LogicalName="bridge/bridge.sh" />
+    <EmbeddedResource Include="..\..\bridge\windows\elevated-setup.ps1" LogicalName="bridge/elevated-setup.ps1" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\AirPodsControl.Core\AirPodsControl.Core.csproj" />
   </ItemGroup>
 </Project>

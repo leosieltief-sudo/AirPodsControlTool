@@ -11,14 +11,23 @@ public enum NoiseControlOutcome
     DeviceReportedDifferentMode,
     /// <summary>Command was written, but no answer arrived in time. State is unknown.</summary>
     NoResponse,
+    /// <summary>WSL bridge: command delivered on an acknowledged AAP channel; the AirPods apply it but send no echo to a
+    /// host without an audio connection (AirPods Pro 3, verified by ear on the test PC). Shown as "sent", not "confirmed".</summary>
+    Sent,
     NotSupportedByModel,
     NoControlChannel,
+    /// <summary>Sending failed: the channel could not be opened or broke while writing. Nothing was delivered.</summary>
     TransportError,
+    /// <summary>Not attempted: another operation was running, or a safety check (input devices, ambiguous adapter)
+    /// stopped it before Bluetooth was touched.</summary>
+    NotStarted,
 }
 
 public sealed record NoiseControlResult(NoiseControlOutcome Outcome, ListeningMode Requested, ListeningMode? Reported, string Message)
 {
-    public bool Success => Outcome == NoiseControlOutcome.Confirmed;
+    public bool Success => Outcome is NoiseControlOutcome.Confirmed or NoiseControlOutcome.Sent;
+    /// <summary>The AirPods themselves reported the requested mode.</summary>
+    public bool Confirmed => Outcome == NoiseControlOutcome.Confirmed;
 }
 
 /// <summary>

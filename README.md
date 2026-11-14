@@ -1,129 +1,144 @@
-# AirPods Control для Windows
+# AirPods Control for Windows
 
-Нативная утилита для Windows 10/11 (x64): заряд AirPods и переключение режимов
-**Noise Cancellation / Off / Transparency** (и Adaptive, если модель поддерживает).
-Стек: .NET 10, WPF, MVVM, WinRT. Нет браузера, облака и регистрации. Работает в системном трее.
+**English** · [Русский](README.ru.md)
+
+A small Windows 10/11 (x64) tray app for AirPods: battery levels and the listening modes
+**Noise Cancellation / Off / Transparency / Adaptive**, plus the modes the stems switch between when you press and hold them.
+.NET 10, WPF, WinRT. No browser, no cloud, no account.
 
 ![screenshot](docs/screenshot.png)
 
-## Что работает сразу, а что требует драйвера
+> **Status: early, tested on one PC.** Everything marked "verified" below was checked on a single machine
+> (Windows 11 26200, MediaTek MT7922 Bluetooth, AirPods Pro 3). Other adapters and AirPods models are untested.
 
-| Функция | Без драйвера | С драйвером MagicAAP |
+## What works
+
+| Feature | How | Verified on hardware |
 |---|---|---|
-| Обнаружение сопряжённых AirPods, модель, статус подключения | ✅ | ✅ |
-| Заряд L / R / Case (BLE, шаг 10 %), зарядка, «в ухе» | ✅ | ✅ |
-| Точный заряд (1 %) через AAP | — | ✅* |
-| **ANC / Off / Transparency / Adaptive** с подтверждением от наушников | ❌ (интерфейс честно показывает причину) | ✅* |
+| Find paired AirPods, model, connection state | Windows APIs, no setup | ✅ |
+| Battery L / R / Case (10 % steps), charging, in-ear | BLE advertisements, no setup | ✅ |
+| Switch ANC / Off / Transparency / Adaptive | WSL2 bridge (below) or MagicAAP driver | ✅ via WSL2 bridge (by ear); MagicAAP path not tested |
+| Exact battery (1 %) | WSL2 bridge, on request | ✅ |
+| Press-and-hold modes on the stems (incl. Off), written to the AirPods | WSL2 bridge, Settings → *Press and hold* | ✅ applied (by ear); kept after reconnect / case: **not verified** |
+| Global hotkeys, autostart, tray menu | — | ✅ |
 
-\* Требуется проверка на оборудовании (см. «Процедура тестирования»).
+The AirPods send no confirmation over the bridge, so the app reports commands as **"sent"**, not "confirmed".
 
-**Почему нужен драйвер.** AirPods управляются по протоколу AAP через L2CAP-канал PSM 0x1001.
-Windows открывает L2CAP классического Bluetooth только драйверам режима ядра. Winsock отклоняет L2CAP-сокет
-(на тестовом ПК получено `WSAESOCKTNOSUPPORT`), а в WinRT такого API нет. Единственный существующий драйвер-мост — **MagicAAP**
-от автора MagicPods. Подробности и источники — в [docs/PROTOCOL.md](docs/PROTOCOL.md).
+## Why this is hard on Windows
 
-## Установка
+AirPods are controlled with Apple's AAP protocol over a Bluetooth L2CAP channel (PSM 0x1001). On Windows only
+kernel-mode drivers can open such channels: Winsock rejects L2CAP sockets (`WSAESOCKTNOSUPPORT`) and WinRT has no API for it.
+Details and sources: [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
-1. Сопрягите AirPods в *Параметры → Bluetooth и устройства*.
-2. Запустите `AirPodsControl.exe` из portable-архива или установите `AirPodsControl-x.y.z-setup.exe`.
-   Права администратора не нужны.
-3. Значок появится в трее. Левый клик открывает панель у трея, правый — меню.
+There are two ways around it:
 
-### Включение переключения режимов (MagicAAP)
-> ⚠️ Решение за вами. На момент написания MagicAAP распространяется без подписи для обычной загрузки.
-> Для установки нужно выключить Secure Boot и включить тестовый режим Windows. Это ослабляет защиту системы от неподписанных драйверов.
-> Сторонние «community»-скрипты, которые просят отключить Defender и выполнить `irm … | iex`, этот проект **не рекомендует**.
+1. **Driverless mode (WSL2 bridge)** — recommended, no Test Mode, no Secure Boot change, no driver.
+   For each command the app lends your USB Bluetooth adapter to a tiny Alpine Linux in WSL2 (via usbipd-win), Linux sends the
+   AAP command, and the adapter is always handed back to Windows.
+   **Downside: Windows has no Bluetooth for about 12–15 s per command** — audio stops and the AirPods reconnect.
+2. **MagicAAP driver** by the MagicPods author — instant, but unsigned: needs Secure Boot off and Windows Test Mode.
+   The app never installs it; see [docs/WINDOWS-DRIVER-RESEARCH.md](docs/WINDOWS-DRIVER-RESEARCH.md).
 
-1. Скачайте драйвер с официальной страницы MagicPods: <https://magicpods.app/magicaap/> и сверьте SHA-256 с указанным там.
-2. Следуйте инструкции на этой странице: Secure Boot off → `bcdedit /set testsigning on` от администратора → перезагрузка → установка `MagicAAP.inf`.
-3. Подключите AirPods, затем в AirPods Control нажмите **Retry**. Строка статуса должна смениться на «Control channel ready (L2CAP 0x1001)».
-4. Чтобы откатить изменения: удалите драйвер в Диспетчере устройств (узел «AAP Server»), выполните `bcdedit /set testsigning off` и включите Secure Boot.
+## Requirements (driverless mode)
 
-Приложение ничего из этого не делает само: оно не устанавливает драйверы и не меняет системные настройки.
+- Windows 10/11 x64 with virtualization enabled in the BIOS/UEFI.
+- **WSL2 installed.** If it is not, run `wsl --install` as administrator and reboot — the app does not do that for you.
+- A Bluetooth adapter connected over **USB** (built-in laptop Bluetooth usually is).
+- AirPods paired with Windows (*Settings → Bluetooth & devices*).
+- Internet access during the one-time setup.
 
-## Использование
+**Adapters:** only MediaTek MT7921/MT7922/MT7925 have been tested (MT7922). Intel, Realtek and Broadcom drivers are present in the
+kernel, but their firmware is not provisioned by the setup — expect them **not to work yet**.
 
-* **Кнопки режимов.** Нажатие отправляет команду AirPods. Кнопка подсвечивается только после того, как наушники
-  вернули тот же режим. Если ответа нет или пришёл другой режим, панель показывает ошибку с объяснением.
-* **Off на Pro 2 / Pro 3 / AirPods 4 ANC.** В прошивке Apple режим Off нужно разрешить. Опция *Settings → Allow 'Off' automatically* (по умолчанию включена)
-  перед Off отправляет AirPods настройку «Allow Off Option» (как iPhone → AirPods → Off Listening Mode).
-  Если её выключить и Off не разрешён на AirPods, наушники останутся в прежнем режиме, и панель это покажет.
-* **Горячие клавиши** (настраиваются): `Ctrl+Alt+1` ANC, `Ctrl+Alt+2` Off, `Ctrl+Alt+3` Transparency.
-  Если сочетание уже занято другим приложением, Windows не даст его зарегистрировать. Конфликт показывается в настройках.
-* **Автозапуск:** *Settings → Start with Windows* (запись в `HKCU\…\Run`, старт свёрнутым в трей).
-* **«—»** вместо процента означает, что данных нет (например, кейс закрыт или далеко). Случайные значения не подставляются.
+## Install
 
-### CLI `airpodsctl.exe` (proof of concept / диагностика)
-```
-airpodsctl diag                      состояние Bluetooth, AirPods, драйвер, проверка Winsock L2CAP
-airpodsctl battery 20                заряд из BLE-рекламы в течение 20 с
-airpodsctl mode anc|off|transparency|adaptive   отправить режим и дождаться подтверждения
-airpodsctl monitor 30 -v             вывести все AAP-пакеты от AirPods
-```
+1. Download `AirPodsControl-x.y.z-win-x64-portable.zip` from [Releases](../../releases) and unpack it anywhere.
+2. Run `AirPodsControl.exe`. Windows SmartScreen may warn because the exe is not code-signed (*More info → Run anyway*).
+3. Click **Set up driverless mode (WSL2)** (or *Settings → Driverless setup*). The wizard:
+   - creates a separate WSL distribution `airpods-bridge` from Alpine minirootfs (~4 MB, SHA-256 checked) and installs
+     BlueZ + Python (~40 MB) into it;
+   - installs [usbipd-win](https://github.com/dorssel/usbipd-win) via `winget` if missing;
+   - asks **once** for administrator rights to share the adapter with usbipd and to copy **only these AirPods'** pairing key
+     into that distribution;
+   - on MediaTek adapters, offers to switch WSL to the AirPods Control kernel (see below);
+   - tests the adapter and the AirPods connection.
 
-## Что фактически проверено (07.11.2026, Windows 11 26200, AirPods Pro 3)
+   You never install Linux by hand. After setup no administrator rights are needed.
+4. **Remove driverless mode** in the wizard deletes the distribution (with the key), un-shares the adapter and removes the kernel line.
 
-| Проверка | Результат |
-|---|---|
-| Unit- и интеграционные тесты (52 шт., без железа) | ✅ все прошли |
-| Обнаружение сопряжённых AirPods через BTHENUM (VID 004C / PID 2027) | ✅ |
-| Имя, модель «AirPods Pro 3», статус «Connected» через WinRT | ✅ |
-| BLE-заряд: L 100 % / R 100 % / Case «—» (кейс вне зоны), «в ухе» | ✅ совпадает с реальным состоянием |
-| Winsock L2CAP-сокет | ❌ `WSAESOCKTNOSUPPORT (10044)`, как и ожидалось |
-| Канал AAP / переключение ANC-Off-Transparency | ⏳ **требуется проверка на оборудовании**: MagicAAP на тестовом ПК не установлен |
-| Точный заряд через AAP | ⏳ требуется проверка (тот же канал) |
-| Ресурсы в трее (Release, single-file) | ~141 МБ working set / ~59 МБ private, ~1 % CPU одного ядра при пассивном BLE-сканировании, утечек за 30 с нет |
+### The WSL kernel (MediaTek only) — read this
 
-## Процедура тестирования на оборудовании
+Microsoft's WSL kernel lacks MediaTek Bluetooth support. The AirPods Control kernel is the same Microsoft kernel version with
+MediaTek Bluetooth enabled and the MT7921/MT7922/MT7925 firmware built in ([kernel/](kernel/)). It is set in
+`%UserProfile%\.wslconfig` (a backup is kept) and **applies to all your WSL distributions** (Ubuntu, Docker Desktop, …).
 
-1. `airpodsctl diag`: AirPods найдены, `Connected: True`; при установленном драйвере `Control: Available`.
-2. `airpodsctl battery 20`: при открытом кейсе или наушниках вне кейса значения совпадают с iPhone с точностью ±10 %.
-3. `airpodsctl monitor 15 -v`: после handshake приходят пакеты `04 00 04 00 04 00 …` (батарея), `… 09 00 0D xx …` (текущий режим), `… 1D …` (метаданные).
-4. `airpodsctl mode anc`: ожидается `Result: Confirmed`, шум слышно подавляется. Повторите для `transparency` и `off`.
-5. `airpodsctl mode off` при выключенном на iPhone «Off Listening Mode» и снятой галочке Allow 'Off' automatically:
-   ожидается `DeviceReportedDifferentMode` или `NoResponse`, но не ложный успех.
-6. В GUI: переключите режим долгим нажатием на ножку. Подсветка должна смениться сама (уведомление от AirPods).
-7. Во время воспроизведения музыки переключите режимы: звук не должен прерываться, устройство вывода не должно меняться.
-8. Выключите и включите Bluetooth, уберите AirPods в кейс и достаньте снова: статус «Disconnected» → «Connected», канал восстанавливается автоматически
-   (повторы через 3 / 10 / 30 / 60 / 180 с).
+> **Release note:** the MediaTek firmware licence allows redistribution but *not as part of the Linux kernel*. Until that is
+> resolved, public releases may ship **without** the kernel; build it yourself with `kernel/build-kernel.sh`
+> (≈30 min) — see [docs/RELEASING.md](docs/RELEASING.md).
 
-Пришлите вывод шагов 3–5 (`-v`) из `%LOCALAPPDATA%\AirPodsControl\logs`, если что-то отличается.
+## Use
 
-## Сборка
+- **Mode buttons / hotkeys** (`Ctrl+Alt+1` ANC, `Ctrl+Alt+2` Off, `Ctrl+Alt+3` Transparency; configurable). Presses during a
+  running switch are merged into it (the latest wins) instead of starting another Bluetooth interruption.
+- **Battery:** *Refresh battery* waits for a fresh BLE advertisement (no interruption, ±10 %). *Exact (AAP)…* reads 1 % values
+  through the bridge after a warning. Old values stay visible, marked with their time — never replaced by 0.
+- **Press and hold (Settings):** tick the modes the stems should switch between (at least two; Off also sends "Allow Off")
+  and click **Apply to AirPods**. The checkboxes are your *desired* set; the line below shows what the AirPods actually
+  reported or confirmed — usually "Current AirPods set: unknown", because they report nothing over the bridge.
+  The stems' Siri / noise-control assignment is never changed.
+- **Bluetooth mouse/keyboard protection:** if a Bluetooth mouse or keyboard is connected through the same adapter (or the app
+  cannot tell), every hand-over is blocked until you explicitly confirm (default: No).
 
-Требования: .NET SDK 10, Windows 10 19041+ SDK (подтягивается через NuGet). Для установщика нужен Inno Setup 6 (необязательно).
-```
-.\build.ps1
-```
-Скрипт запускает unit-тесты, собирает self-contained single-file `win-x64` в `dist\AirPodsControl-portable`
-и создаёт zip. Если найден `ISCC.exe`, дополнительно собирается установщик.
-
-## Архитектура
+### CLI `airpodsctl.exe`
 
 ```
-src/AirPodsControl.Core      (net10.0, без Windows API — полностью покрывается тестами)
-  Protocol/AapPackets        сборка AAP-пакетов (handshake, 0x4D, 0x0F, 0x0D, 0x34)
-  Protocol/AapParser         разбор батареи, ear detection, control, metadata
-  Protocol/ProximityPairing  разбор BLE-рекламы 0x07
-  Models/AirPodsCatalog      PID ↔ модель ↔ возможности (Support.Yes/No/Unverified)
-  Services/AirPodsProtocolService  сессия AAP, handshake, ожидание эха команд
-  Services/NoiseControlManager     переключение режимов, только подтверждённое состояние
-  Services/BatteryMonitor          слияние AAP (1 %) и BLE (10 %), устаревание данных
-src/AirPodsControl.Windows   BluetoothDeviceManager (CfgMgr32 + WinRT), BleAdvertisementSource,
-                             AapControlChannel/DriverAapTransport (MagicAAP), AirPodsController (переподключение)
-src/AirPodsControl.App       WPF: MainWindow (панель), SettingsWindow, трей, HotkeyService, SettingsService
-src/AirPodsControl.Cli       airpodsctl
-tests/AirPodsControl.Tests   xUnit: векторы из документации LibrePods/AirPodsDesktop + интеграционные тесты со скриптовым транспортом
+airpodsctl diag                       Bluetooth, paired AirPods, control channel
+airpodsctl battery 20                 BLE battery for 20 s
+airpodsctl bridge-status              driverless mode readiness
+airpodsctl bridge-check               which adapter would be handed over, which input devices it serves (changes nothing)
+airpodsctl bridge-mode anc|off|transparency|adaptive[,mode…] [--trace]   switch via the bridge, print the operation trace
+airpodsctl bridge-battery             exact battery over AAP
+airpodsctl bridge-hold-cycle --modes off,anc,transparency[,adaptive]     write the press-and-hold modes
+airpodsctl bridge-enable-off (--modes anc,… | --keep-current)            same, Off always added
+airpodsctl kernel-status | kernel-install | kernel-remove                MediaTek WSL kernel
+  --allow-input-loss                  explicitly allow losing a Bluetooth mouse/keyboard (a general --yes never does)
 ```
 
-Ресурсы: декоративные анимации работают только при видимом окне. Плавание наушников ограничено 30 fps,
-BLE-сканирование пассивное, фоновых циклов отрисовки нет. Логи хранятся в `%LOCALAPPDATA%\AirPodsControl\logs`
-(7 дней, без персональных данных, кроме MAC-адреса наушников), настройки — в `%APPDATA%\AirPodsControl\settings.json`.
+## Build from source
 
-## Источники
-* LibrePods — https://github.com/librepods-org/librepods (протокол AAP, возможности моделей)
-* AirPodsDesktop — https://github.com/SpriteOvO/AirPodsDesktop (формат BLE proximity pairing, PID моделей)
-* AirPodsWindows — https://github.com/YimingZhanshen/AirPodsWindows (интерфейс драйвера MagicAAP)
-* MagicPods / MagicAAP — https://magicpods.app/magicaap/
+Requirements: .NET 10 SDK; Python 3 for the bridge tests (optional); Inno Setup 6 for an installer (optional).
 
-«AirPods» — товарный знак Apple Inc. Проект не связан с Apple.
+```
+.\build.ps1             # tests + self-contained single-file win-x64 build + zip in .\dist
+.\build.ps1 -NoKernel   # same, without the MediaTek WSL kernel
+```
+
+The kernel is not stored in git. Build it with `kernel/build-kernel.sh` (as root in any Alpine WSL distribution) into
+`assets\wsl-kernel\`; `build.ps1` then adds it to the zip. Tests: `dotnet test tests\AirPodsControl.Tests` (154) and
+`python -m unittest discover -s tests/bridge` (61).
+
+## Privacy
+
+- No telemetry, no accounts. Network access only during setup (Alpine image, Alpine packages, usbipd-win via winget).
+- The AirPods' pairing key is copied only into the local `airpods-bridge` WSL distribution and deleted with it.
+- Logs (`%LOCALAPPDATA%\AirPodsControl\logs`, 7 days) contain the AirPods' Bluetooth address; settings are in
+  `%APPDATA%\AirPodsControl`.
+
+## Documentation
+
+- [docs/WSL-BRIDGE.md](docs/WSL-BRIDGE.md) — how the bridge works · [docs/BRIDGE-OPERATIONS.md](docs/BRIDGE-OPERATIONS.md) — one
+  operation = one hand-over, traces, input protection, press-and-hold modes · [docs/PROTOCOL.md](docs/PROTOCOL.md) — AAP and BLE
+  formats with sources · [docs/RELEASING.md](docs/RELEASING.md) — release checklist. Most docs are in Russian.
+
+## Licences and credits
+
+- AirPods Control: [MIT](LICENSE).
+- WSL kernel (only if bundled): GPL-2.0 — source is Microsoft's
+  [WSL2-Linux-Kernel](https://github.com/microsoft/WSL2-Linux-Kernel) (tag in `BUILDINFO`) plus [kernel/patches](kernel/patches);
+  embedded MediaTek firmware: [kernel/LICENCE.mediatek](kernel/LICENCE.mediatek).
+- usbipd-win (GPL-3.0) and Alpine/BlueZ packages are downloaded by the setup from their official sources, not bundled.
+- Protocol knowledge: [LibrePods](https://github.com/librepods-org/librepods) (AAP),
+  [AirPodsDesktop](https://github.com/SpriteOvO/AirPodsDesktop) (BLE format, model IDs),
+  [AirPodsWindows](https://github.com/YimingZhanshen/AirPodsWindows) (MagicAAP interface), [MagicPods](https://magicpods.app/magicaap/).
+
+"AirPods" is a trademark of Apple Inc. This project is not affiliated with Apple.

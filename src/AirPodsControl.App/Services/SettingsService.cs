@@ -18,6 +18,11 @@ public sealed class AppSettings
     public bool ReduceMotion { get; set; }
     /// <summary>Bluetooth address of the preferred AirPods; null = automatic.</summary>
     public ulong? PreferredDevice { get; set; }
+    /// <summary>How mode commands reach the AirPods: Auto / WSL2 bridge / MagicAAP driver.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<AirPodsControl.Core.Services.ControlBackend>))]
+    public AirPodsControl.Core.Services.ControlBackend ControlBackend { get; set; } = AirPodsControl.Core.Services.ControlBackend.Auto;
+    /// <summary>The user's desired press-and-hold cycle (0x1A bitmask), as chosen in Settings. Not the AirPods' state; null = never chosen.</summary>
+    public byte? HoldCycleModes { get; set; }
 }
 
 /// <summary>Stores settings as JSON in %APPDATA%\AirPodsControl. Nothing is sent anywhere.</summary>

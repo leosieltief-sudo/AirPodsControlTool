@@ -31,12 +31,19 @@
         <Border CornerRadius="20" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1">
             <Border.Effect><DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.5" /></Border.Effect>
         </Border>
-        <StackPanel Margin="20,14,20,18">
+        <Grid Margin="20,14,20,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid MouseLeftButtonDown="Drag">
                 <TextBlock Text="Settings" FontFamily="{StaticResource MonoFont}" FontSize="15" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
-                <Button Style="{StaticResource IconButton}" Content="&#xE711;" HorizontalAlignment="Right" Click="Cancel_Click" />
+                <Button x:Name="closeX" Style="{StaticResource IconButton}" Content="&#xE711;" HorizontalAlignment="Right" Click="Cancel_Click" AutomationProperties.Name="Close" />
             </Grid>
 
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,-12,0" Padding="0,0,12,0" Focusable="False">
+            <StackPanel>
             <TextBlock Style="{StaticResource Section}" Text="General" />
             <CheckBox x:Name="autostart" Style="{StaticResource DarkCheck}" Content="Start with Windows" />
             <CheckBox x:Name="startHidden" Style="{StaticResource DarkCheck}" Content="Start hidden in the tray" />
@@ -46,9 +53,33 @@
             <TextBlock Style="{StaticResource Section}" Text="Device" />
             <ComboBox x:Name="deviceBox" DisplayMemberPath="Label" Height="28" />
 
+            <TextBlock Style="{StaticResource Section}" Text="Mode switching backend" />
+            <ComboBox x:Name="backendBox" Height="28" SelectedIndex="0">
+                <ComboBoxItem Content="Auto (MagicAAP if loaded, otherwise WSL2 bridge)" Tag="Auto" />
+                <ComboBoxItem Content="WSL2 Bridge (No Test Mode)" Tag="WslBridge" />
+                <ComboBoxItem Content="MagicAAP Driver (Test Mode)" Tag="MagicAap" />
+            </ComboBox>
+            <TextBlock x:Name="backendStatus" Style="{StaticResource Hint}" Margin="0,6,0,0" />
+            <Button Style="{StaticResource LinkButton}" Content="Driverless setup (WSL2)…" HorizontalAlignment="Left" Margin="0,2,0,0" Click="Bridge_Click" />
+
             <TextBlock Style="{StaticResource Section}" Text="Off mode" />
             <CheckBox x:Name="autoOff" Style="{StaticResource DarkCheck}" Content="Allow 'Off' on the AirPods automatically" />
             <TextBlock Style="{StaticResource Hint}" Text="On AirPods Pro 2/Pro 3/AirPods 4 (ANC) Off is a listening mode that must be allowed in the AirPods' own settings. When enabled, pressing Off first sends the 'Allow Off Option' setting (AAP control 0x34) to the AirPods — the same setting as iPhone → AirPods → Off Listening Mode." />
+
+            <TextBlock Style="{StaticResource Section}" Text="Press and hold (stem)" />
+            <TextBlock Foreground="{StaticResource TextBrush}" FontSize="12" TextWrapping="Wrap" Text="Selected modes will be switched by pressing and holding a stem." />
+            <WrapPanel Margin="0,2,0,0">
+                <CheckBox x:Name="cyOff" Style="{StaticResource DarkCheck}" Content="Off" Margin="0,5,18,5" />
+                <CheckBox x:Name="cyAnc" Style="{StaticResource DarkCheck}" Content="ANC" Margin="0,5,18,5" />
+                <CheckBox x:Name="cyTr" Style="{StaticResource DarkCheck}" Content="Transparency" Margin="0,5,18,5" />
+                <CheckBox x:Name="cyAd" Style="{StaticResource DarkCheck}" Content="Adaptive" Margin="0,5,0,5" />
+            </WrapPanel>
+            <TextBlock x:Name="cycleDesired" Style="{StaticResource Hint}" Margin="0,0,0,2" />
+            <TextBlock x:Name="cycleAirPods" Style="{StaticResource Hint}" Margin="0,0,0,2" Foreground="{StaticResource TextBrush}" />
+            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,4"
+                       Text="Written only when you click Apply (one WSL-bridge session; Bluetooth pauses about 15 s). With Off selected, 'Allow Off' is sent too. The current listening mode is not changed. The stems' press-and-hold action is not changed either: a stem set to Siri does not switch modes, and this app does not reassign it." />
+            <Button x:Name="applyCycle" Style="{StaticResource LinkButton}" Content="Apply to AirPods" HorizontalAlignment="Left" FontWeight="Bold" Click="ApplyCycle_Click" />
+            <TextBlock x:Name="cycleResult" Style="{StaticResource Hint}" Margin="0,6,0,0" FontFamily="{StaticResource MonoFont}" FontSize="11" />
 
             <TextBlock Style="{StaticResource Section}" Text="Global hotkeys (click a box, then press the combination)" />
             <CheckBox x:Name="hotkeysOn" Style="{StaticResource DarkCheck}" Content="Enable global hotkeys" />
@@ -68,12 +99,14 @@
                 <TextBox x:Name="hkTr" Grid.Row="2" Grid.Column="1" Margin="0,3" PreviewKeyDown="Hotkey_KeyDown" />
             </Grid>
             <TextBlock x:Name="hotkeyStatus" Style="{StaticResource Hint}" Margin="0,6,0,0" />
-
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-                <Button Style="{StaticResource LinkButton}" Content="Open log folder" Click="Logs_Click" Margin="0,0,8,0" />
-                <Button Style="{StaticResource LinkButton}" Content="Cancel" Click="Cancel_Click" Margin="0,0,8,0" />
-                <Button Style="{StaticResource LinkButton}" Content="Save" Click="Save_Click" FontWeight="Bold" />
             </StackPanel>
-        </StackPanel>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button x:Name="logsBtn" Style="{StaticResource LinkButton}" Content="Open log folder" Click="Logs_Click" Margin="0,0,8,0" />
+                <Button x:Name="cancelBtn" Style="{StaticResource LinkButton}" Content="Cancel" Click="Cancel_Click" Margin="0,0,8,0" />
+                <Button x:Name="saveBtn" Style="{StaticResource LinkButton}" Content="Save" Click="Save_Click" FontWeight="Bold" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

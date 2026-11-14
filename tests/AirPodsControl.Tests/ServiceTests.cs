@@ -150,7 +150,7 @@ public class BatteryMonitorTests
     }
 
     [Fact]
-    public void Aap_wins_over_ble_and_expires_back()
+    public void Aap_wins_over_ble_and_ages_into_stale_not_zero()
     {
         var now = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
         var b = new BatteryMonitor(() => now);
@@ -163,8 +163,51 @@ public class BatteryMonitorTests
         Assert.True(b.Current.Left.Charging);
         Assert.Equal(BatterySource.Aap, b.Current.Left.Source);
 
-        now += TimeSpan.FromMinutes(20); // AAP stale, BLE stale too
+        Assert.False(b.Current.Left.Stale);
+
+        now += TimeSpan.FromMinutes(20); // AAP stale, BLE stale too: keep the newest value, flagged, with its time
+        Assert.Equal(99, b.Current.Left.Level);
+        Assert.True(b.Current.Left.Stale);
+        Assert.Equal(BatterySource.Aap, b.Current.Left.Source);
+        Assert.Equal(DateTimeOffset.Parse("2026-01-01T00:00:00Z"), b.Current.Left.UpdatedAt);
+    }
+
+    [Fact]
+    public void Newer_ble_value_is_shown_fresh_over_stale_aap()
+    {
+        var now = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+        var b = new BatteryMonitor(() => now);
+        b.OnAapBattery((BatteryMessage)AapParser.Parse(Hex("04 00 04 00 04 00 03 02 01 64 02 01 04 01 63 01 01 08 01 11 02 01")));
+        now += TimeSpan.FromMinutes(20);
+        b.OnBleAdvertisement(new ProximityPairingMessage(0x2014, 80, 70, 50, false, false, false, true, true, false, false, 0));
+        Assert.Equal(80, b.Current.Left.Level);
+        Assert.False(b.Current.Left.Stale);
+        Assert.Equal(now, b.LastBleAt);
+    }
+
+    [Fact]
+    public void Radio_loss_marks_values_stale_without_erasing_them()
+    {
+        var now = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+        var b = new BatteryMonitor(() => now);
+        b.OnBleAdvertisement(new ProximityPairingMessage(0x2014, 80, 70, 50, false, false, false, true, true, false, false, 0));
+        now += TimeSpan.FromSeconds(5);
+        b.MarkAllStale();
+        Assert.Equal(80, b.Current.Left.Level);
+        Assert.True(b.Current.Left.Stale);
+        now += TimeSpan.FromSeconds(5);
+        b.OnBleAdvertisement(new ProximityPairingMessage(0x2014, 70, 70, 50, false, false, false, true, true, false, false, 0));
+        Assert.False(b.Current.Left.Stale);   // a new advertisement after the loss is fresh again
+        Assert.Equal(70, b.Current.Left.Level);
+    }
+
+    [Fact]
+    public void Unknown_stays_unknown_never_zero()
+    {
+        var b = new BatteryMonitor();
+        b.MarkAllStale();
         Assert.Null(b.Current.Left.Level);
+        Assert.False(b.Current.Left.IsKnown);
     }
 
     [Fact]

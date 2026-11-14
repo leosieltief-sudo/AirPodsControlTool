@@ -83,6 +83,19 @@
                 <c:BatteryCard DataContext="{Binding Right}" Margin="4,0" />
                 <c:BatteryCard DataContext="{Binding Case}" Margin="4,0" />
             </UniformGrid>
+            <!-- Battery refresh: BLE listens only (no interruption); exact AAP needs the WSL hand-over (confirmed first) -->
+            <DockPanel Margin="2,8,2,0" LastChildFill="True">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Style="{StaticResource LinkButton}" Content="Refresh battery" Command="{Binding RefreshBatteryCommand}" Margin="8,0,0,0"
+                            AutomationProperties.Name="Refresh battery (BLE, no interruption)"
+                            ToolTip="Listens for the AirPods' next BLE advertisement (±10 %). Bluetooth keeps working. BLE cannot force a new value." />
+                    <Button Style="{StaticResource LinkButton}" Content="Exact (AAP)…" Command="{Binding ExactBatteryCommand}" Margin="10,0,0,0"
+                            Visibility="{Binding ExactBatteryAvailable, Converter={StaticResource BoolVis}}"
+                            AutomationProperties.Name="Exact battery over the WSL bridge — interrupts Bluetooth"
+                            ToolTip="1 % precision through the WSL bridge: Windows Bluetooth (audio, mouse, keyboard) is off for about 10 s. Asks first." />
+                </StackPanel>
+                <TextBlock Text="{Binding BatteryStatusText}" Foreground="{StaticResource SubtleTextBrush}" FontSize="10.5" TextWrapping="Wrap" VerticalAlignment="Top" />
+            </DockPanel>
 
             <!-- Noise control -->
             <TextBlock Text="Noise Control" Margin="2,18,0,8" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="{StaticResource LabelBrush}" />
@@ -125,10 +138,15 @@
                 </Border.Style>
                 <StackPanel>
                     <TextBlock Text="{Binding ChannelText}" Foreground="{StaticResource SubtleTextBrush}" FontSize="11.5" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0" Visibility="{Binding ChannelProblem, Converter={StaticResource BoolVis}}">
-                        <Button Style="{StaticResource LinkButton}" Content="Retry" Command="{Binding ReconnectCommand}" Margin="0,0,8,0" />
-                        <Button Style="{StaticResource LinkButton}" Content="How to enable mode switching" Click="Help_Click" />
-                    </StackPanel>
+                    <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0" BorderThickness="0" Background="#22FFFFFF"
+                                 Foreground="{StaticResource AccentBrush}" Visibility="{Binding IsSwitching, Converter={StaticResource BoolVis}}" />
+                    <WrapPanel Margin="0,8,0,0" Visibility="{Binding ChannelProblem, Converter={StaticResource BoolVis}}">
+                        <Button Style="{StaticResource LinkButton}" Content="Set up driverless mode (WSL2)" Command="{Binding SetupCommand}" Margin="0,0,8,6"
+                                FontWeight="SemiBold" Visibility="{Binding OfferBridgeSetup, Converter={StaticResource BoolVis}}"
+                                ToolTip="No Test Mode, no Secure Boot change: commands go through a small Linux (WSL2) for a few seconds." />
+                        <Button Style="{StaticResource LinkButton}" Content="Retry" Command="{Binding ReconnectCommand}" Margin="0,0,8,6" />
+                        <Button Style="{StaticResource LinkButton}" Content="MagicAAP driver info" Click="Help_Click" Margin="0,0,0,6" />
+                    </WrapPanel>
                 </StackPanel>
             </Border>
         </StackPanel>

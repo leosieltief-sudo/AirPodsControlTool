@@ -45,7 +45,7 @@ public partial class BatteryCard : UserControl
             b.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(color, TimeSpan.FromSeconds(0.4)));
         else bar.Background = new SolidColorBrush(color);
 
-        pct.Foreground = _vm.IsKnown ? (Brush)FindResource("TextBrush") : (Brush)FindResource("SubtleTextBrush");
+        pct.Foreground = _vm.IsKnown && !_vm.IsStale ? (Brush)FindResource("TextBrush") : (Brush)FindResource("SubtleTextBrush");
         bolt.Visibility = _vm.IsCharging ? Visibility.Visible : Visibility.Collapsed;
         UpdatePulse();
     }
