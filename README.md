@@ -2,14 +2,43 @@
 
 **English** · [Русский](README.ru.md)
 
-A small Windows 10/11 (x64) tray app for AirPods: battery levels and the listening modes
-**Noise Cancellation / Off / Transparency / Adaptive**, plus the modes the stems switch between when you press and hold them.
-.NET 10, WPF, WinRT. No browser, no cloud, no account.
+**Switch AirPods noise cancellation, Transparency, Adaptive and Off on Windows 10/11 — and set what the stems do when you
+press and hold them. No Windows Test Mode, no Secure Boot change, no unsigned driver, no iPhone or Mac.**
 
-![screenshot](docs/screenshot.png)
+> 🇷🇺 Переключение шумоподавления AirPods (ANC, Прозрачность, Адаптивный, Off) и настройка удержания ножки на Windows
+> **без тестового режима и без отключения Secure Boot**. Описание на русском — [README.ru.md](README.ru.md).
 
-> **Status: early, tested on one PC.** Everything marked "verified" below was checked on a single machine
-> (Windows 11 26200, MediaTek MT7922 Bluetooth, AirPods Pro 3). Other adapters and AirPods models are untested.
+A small tray app (.NET 10, WPF) that shows AirPods battery levels and controls the listening modes that Windows itself cannot
+change. No browser, no cloud, no account, no telemetry.
+
+![AirPods Control for Windows: battery and noise-control modes in the tray window](docs/screenshot.png)
+
+> **Status: early, tested on one PC** (Windows 11 26200, MediaTek MT7922 Bluetooth, AirPods Pro 3). Other adapters and
+> AirPods models are untested. Please read [Limitations](#limitations) before you install.
+
+## No Test Mode — run it and set up once
+
+Other ways to control AirPods modes on Windows need an unsigned kernel driver, which means turning Secure Boot off and
+enabling Windows Test Mode. **AirPods Control does not.** It uses Windows' own WSL2 to talk to the AirPods:
+
+1. Unpack the zip and run `AirPodsControl.exe` — nothing to install, no driver.
+2. Click **Set up driverless mode** once. The wizard prepares everything by itself (you never install Linux by hand) and
+   asks for administrator rights **one time**.
+3. From then on: click a mode or press a hotkey. No administrator rights, no reboot, Secure Boot and Windows security settings
+   stay as they are.
+
+What you need beforehand: WSL2 installed (`wsl --install`), a USB Bluetooth adapter (most laptops' built-in Bluetooth is one),
+and — for MediaTek adapters — the AirPods Control WSL kernel, which the current release does **not** include (see
+[Limitations](#limitations)).
+
+## Who is it for
+
+- **AirPods owners on Windows** who just want to switch noise cancellation / Transparency / Off from the PC, or make the stems
+  cycle through Off, ANC, Transparency and Adaptive without an iPhone.
+- **Developers and researchers**: a working, documented way to speak Apple's AAP protocol from Windows without a kernel driver;
+  protocol notes with sources in [docs/PROTOCOL.md](docs/PROTOCOL.md), driver research in
+  [docs/WINDOWS-DRIVER-RESEARCH.md](docs/WINDOWS-DRIVER-RESEARCH.md), a CLI for scripting.
+- **Companies and integrators**: MIT licence, no network services, logs stay on the machine.
 
 ## What works
 
@@ -24,6 +53,27 @@ A small Windows 10/11 (x64) tray app for AirPods: battery levels and the listeni
 
 The AirPods send no confirmation over the bridge, so the app reports commands as **"sent"**, not "confirmed".
 
+## Limitations
+
+Known downsides of the current version, honestly:
+
+- **Memory: about 900 MB of RAM while the bridge is active.** The WSL2 virtual machine with the AirPods Control kernel
+  (`vmmemWSL` in Task Manager) stays running between commands. **This will be fixed in upcoming updates** (stopping the VM
+  when idle and capping its memory). Until then, `wsl --shutdown` frees the memory; the next command starts it again.
+- **Bluetooth pauses for about 12–15 s per command.** For each command the USB adapter is lent to WSL and handed back to
+  Windows: audio stops and the AirPods reconnect. Quick repeated presses are merged into one pause.
+- **Release without the MediaTek kernel.** The MediaTek firmware licence does not allow shipping it inside a Linux kernel, so
+  the public zip has no kernel. MediaTek owners build it once with `kernel/build-kernel.sh` (≈30 min, see
+  [docs/RELEASING.md](docs/RELEASING.md)). That kernel then applies to **all** your WSL distributions.
+- **Adapters:** only MediaTek MT7921/MT7922/MT7925 tested (MT7922). Intel, Realtek and Broadcom: firmware is not provisioned
+  yet — expect them not to work. Bluetooth must be on USB.
+- **Tested on one PC and one model (AirPods Pro 3).** Other models with noise control should work but are unverified.
+- **No confirmation from the AirPods:** results are "sent". Whether the press-and-hold set survives reconnecting and the case
+  has not been verified.
+- **One-time requirements:** WSL2, administrator rights once, internet during setup.
+- **Not code-signed:** SmartScreen warns on first start (*More info → Run anyway*).
+- Windows 10/11 x64 only.
+
 ## Why this is hard on Windows
 
 AirPods are controlled with Apple's AAP protocol over a Bluetooth L2CAP channel (PSM 0x1001). On Windows only
@@ -35,7 +85,6 @@ There are two ways around it:
 1. **Driverless mode (WSL2 bridge)** — recommended, no Test Mode, no Secure Boot change, no driver.
    For each command the app lends your USB Bluetooth adapter to a tiny Alpine Linux in WSL2 (via usbipd-win), Linux sends the
    AAP command, and the adapter is always handed back to Windows.
-   **Downside: Windows has no Bluetooth for about 12–15 s per command** — audio stops and the AirPods reconnect.
 2. **MagicAAP driver** by the MagicPods author — instant, but unsigned: needs Secure Boot off and Windows Test Mode.
    The app never installs it; see [docs/WINDOWS-DRIVER-RESEARCH.md](docs/WINDOWS-DRIVER-RESEARCH.md).
 
@@ -46,9 +95,6 @@ There are two ways around it:
 - A Bluetooth adapter connected over **USB** (built-in laptop Bluetooth usually is).
 - AirPods paired with Windows (*Settings → Bluetooth & devices*).
 - Internet access during the one-time setup.
-
-**Adapters:** only MediaTek MT7921/MT7922/MT7925 have been tested (MT7922). Intel, Realtek and Broadcom drivers are present in the
-kernel, but their firmware is not provisioned by the setup — expect them **not to work yet**.
 
 ## Install
 
@@ -73,7 +119,7 @@ MediaTek Bluetooth enabled and the MT7921/MT7922/MT7925 firmware built in ([kern
 `%UserProfile%\.wslconfig` (a backup is kept) and **applies to all your WSL distributions** (Ubuntu, Docker Desktop, …).
 
 > **Release note:** the MediaTek firmware licence allows redistribution but *not as part of the Linux kernel*. Until that is
-> resolved, public releases may ship **without** the kernel; build it yourself with `kernel/build-kernel.sh`
+> resolved, public releases ship **without** the kernel; build it yourself with `kernel/build-kernel.sh`
 > (≈30 min) — see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Use
@@ -103,6 +149,29 @@ airpodsctl bridge-enable-off (--modes anc,… | --keep-current)            same,
 airpodsctl kernel-status | kernel-install | kernel-remove                MediaTek WSL kernel
   --allow-input-loss                  explicitly allow losing a Bluetooth mouse/keyboard (a general --yes never does)
 ```
+
+## FAQ
+
+**How do I turn on AirPods noise cancellation on Windows?** Windows has no setting for it. Install AirPods Control, run the
+driverless setup once, then click *Noise Cancellation* or press `Ctrl+Alt+1`.
+
+**Can I switch AirPods Pro to Transparency mode or Off from a Windows PC without an iPhone?** Yes — that is what this app
+does, including Adaptive on models that have it.
+
+**Do I need Test Mode, a disabled Secure Boot or a custom driver?** No. Driverless mode uses WSL2 and usbipd-win. The optional
+MagicAAP driver path does need them; the app never installs it.
+
+**Can I make the stem's press-and-hold include Off without a Mac or iPhone?** Yes: *Settings → Press and hold*, tick the modes,
+*Apply to AirPods*.
+
+**Why does my audio stop for a few seconds?** The adapter is briefly lent to WSL for each command — see
+[Limitations](#limitations).
+
+**Why does `vmmemWSL` use ~900 MB of RAM?** The WSL VM stays running between commands. A fix is planned; `wsl --shutdown`
+frees it now.
+
+**Does it work with AirPods Pro 2 / AirPods 4 / AirPods Max?** Untested. Models with noise control should work if your
+Bluetooth adapter is supported — reports are welcome in Issues.
 
 ## Build from source
 
@@ -142,3 +211,8 @@ The kernel is not stored in git. Build it with `kernel/build-kernel.sh` (as root
   [AirPodsWindows](https://github.com/YimingZhanshen/AirPodsWindows) (MagicAAP interface), [MagicPods](https://magicpods.app/magicaap/).
 
 "AirPods" is a trademark of Apple Inc. This project is not affiliated with Apple.
+
+<sub>Keywords: AirPods Windows, AirPods Pro Windows 11, AirPods noise cancellation Windows, AirPods ANC PC, AirPods transparency
+mode Windows, AirPods Adaptive mode Windows, AirPods Off mode, AirPods stem press and hold, AirPods battery Windows, AirPods
+without iPhone, AAP protocol, Apple Accessory Protocol, L2CAP, WSL2 Bluetooth, usbipd, no Test Mode, no driver ·
+шумоподавление AirPods Windows, режим прозрачности AirPods на ПК, AirPods на Windows без тестового режима.</sub>

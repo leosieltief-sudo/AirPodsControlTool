@@ -73,8 +73,11 @@ AirPods Control v0.1.0 — early release, tested on one PC (Windows 11, MediaTek
 - Press-and-hold modes on the stems (incl. Off) written to the AirPods.
 - Requires WSL2 and a USB Bluetooth adapter. MediaTek adapters need the AirPods Control WSL kernel, which is NOT included in
   this release (firmware licence) — build it with kernel/build-kernel.sh. Intel/Realtek/Broadcom: untested.
+- No Windows Test Mode, no Secure Boot change, no driver.
+- Known issue: the WSL VM uses about 900 MB of RAM while the bridge is active (fix planned; `wsl --shutdown` frees it).
 - The exe is not code-signed (SmartScreen warning).
 
 Ранняя версия, проверена на одном ПК. Требуются WSL2 и USB-адаптер Bluetooth. Для MediaTek нужно ядро AirPods Control —
-в этот релиз оно не входит (лицензия прошивки), его собирает kernel/build-kernel.sh.
+в этот релиз оно не входит (лицензия прошивки), его собирает kernel/build-kernel.sh. Без тестового режима Windows и без
+отключения Secure Boot. Известная проблема: пока мост активен, ВМ WSL занимает около 900 МБ ОЗУ — будет исправлено в обновлениях.
 ```
