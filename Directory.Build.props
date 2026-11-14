@@ -1,9 +1,9 @@
-<Project>
+﻿<Project>
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Company>AirPods Control (open source)</Company>
     <Product>AirPods Control</Product>
     <Copyright>MIT</Copyright>

@@ -20,6 +20,9 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\tray-light.ico" />
+    <Resource Include="Assets\tray-dark.ico" />
+    <Resource Include="Assets\hero\*.png" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AirPodsControl.Windows\AirPodsControl.Windows.csproj" />

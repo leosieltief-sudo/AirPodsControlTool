@@ -124,9 +124,16 @@ public partial class App : Application
 
     private void CreateTray()
     {
-        System.Drawing.Icon icon;
-        var res = GetResourceStream(new Uri("pack://application:,,,/Assets/app.ico"));
-        icon = res is null ? System.Drawing.SystemIcons.Application : new System.Drawing.Icon(res.Stream, WinForms.SystemInformation.SmallIconSize);
+        var icon = LoadTrayIcon();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, e) =>
+        {
+            if (e.Category != Microsoft.Win32.UserPreferenceCategory.General) return;
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (_tray is null) return;
+                var old = _tray.Icon; _tray.Icon = LoadTrayIcon(); old?.Dispose();
+            });
+        };
 
         var menu = new WinForms.ContextMenuStrip();
         _miAnc = new WinForms.ToolStripMenuItem("Noise Cancellation", null, (_, _) => TraySetMode(ListeningMode.NoiseCancellation));
@@ -142,6 +149,20 @@ public partial class App : Application
         _tray = new WinForms.NotifyIcon { Icon = icon, Text = "AirPods Control", ContextMenuStrip = menu, Visible = true };
         _tray.MouseClick += (_, e) => { if (e.Button == WinForms.MouseButtons.Left) Dispatcher.BeginInvoke(_window.Toggle); };
         UpdateTrayMenu();
+    }
+
+    /// <summary>White AirPods silhouette on a dark taskbar, dark silhouette on a light one (SystemUsesLightTheme).</summary>
+    private System.Drawing.Icon LoadTrayIcon()
+    {
+        bool lightTaskbar = false;
+        try
+        {
+            using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            lightTaskbar = k?.GetValue("SystemUsesLightTheme") is int v && v == 1;
+        }
+        catch { }
+        var res = GetResourceStream(new Uri($"pack://application:,,,/Assets/{(lightTaskbar ? "tray-dark" : "tray-light")}.ico"));
+        return res is null ? System.Drawing.SystemIcons.Application : new System.Drawing.Icon(res.Stream, WinForms.SystemInformation.SmallIconSize);
     }
 
     private void UpdateTrayMenu()

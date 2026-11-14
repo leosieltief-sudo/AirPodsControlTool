@@ -59,7 +59,7 @@
                     </RadialGradientBrush>
                 </Border.Background>
                 <Grid>
-                    <c:AirPodsVisual x:Name="visual" Margin="10,12,10,8" Shape="{Binding Shape}" IsConnected="{Binding IsConnected}" />
+                    <c:AirPodsVisual x:Name="visual" Margin="10,12,10,8" Shape="{Binding Shape}" IsConnected="{Binding IsConnected}" Mode="{Binding ActiveMode}" />
                     <TextBlock Text="No AirPods paired" Foreground="{StaticResource SubtleTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                FontFamily="{StaticResource MonoFont}" FontSize="12">
                         <TextBlock.Style>
